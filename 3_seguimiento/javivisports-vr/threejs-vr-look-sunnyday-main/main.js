@@ -2,14 +2,14 @@ import { VRButton } from 'https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js
 
 const container = document.getElementById('canvas-container');
 
-// ─── AUDIO ────────────────────────────────────────────────────────
+// ─── AUDIO Y EFECTOS SONOROS ──────────────────────────────────────
 const sfxSlide = new Audio('assets/uuyy.mp3'); sfxSlide.volume = 1.0;
 const bgMusic = new Audio('assets/audio/forest_night.mp3'); bgMusic.loop = true; bgMusic.volume = 0.4; 
 
 const sfxCoin = new Audio('assets/audio/chime.mp3'); sfxCoin.volume = 0.5;
 const sfxPower = new Audio('assets/audio/win.mp3'); sfxPower.volume = 0.7;
 
-// ─── MOTOR GRÁFICO Y VR ───────────────────────────────────────────
+// ─── MOTOR GRÁFICO Y CONFIGURACIÓN WEBXR ──────────────────────────
 const scene = new THREE.Scene();
 scene.fog = new THREE.FogExp2(0x023459, 0.035); 
 
@@ -23,19 +23,19 @@ const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
 renderer.setSize(window.innerWidth, window.innerHeight);
 renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
 renderer.shadowMap.enabled = true;
-renderer.xr.enabled = true; 
+renderer.xr.enabled = true; // Habilita el renderizado dentro de los visores Meta Quest
 container.appendChild(renderer.domElement);
 
 const vrButtonElement = VRButton.createButton(renderer);
 document.getElementById('vr-button-container').appendChild(vrButtonElement);
 
-// ─── CARGA DE TEXTURAS ────────────────────────────────────────────
+// ─── CARGA DE TEXTURAS EN ENTORNO ─────────────────────────────────
 const textureLoader = new THREE.TextureLoader();
 textureLoader.load('assets/fondo_360.jpg', tex => { tex.mapping = THREE.EquirectangularReflectionMapping; scene.background = tex; scene.environment = tex; });
 const texturaPiso = textureLoader.load('assets/asfalto.jpeg'); texturaPiso.wrapS = texturaPiso.wrapT = THREE.RepeatWrapping; texturaPiso.repeat.set(1, 4); 
 const tileMat = new THREE.MeshStandardMaterial({ map: texturaPiso, roughness: 0.8, metalness: 0.2 });
 
-// ─── CARGA DE MODELOS 3D ──────────────────────────────────────────
+// ─── GESTIÓN Y CARGA ASÍNCRONA DE MODELOS 3D ──────────────────────
 const gltfLoader = new THREE.GLTFLoader();
 
 const modelosBase = {
@@ -45,19 +45,26 @@ const modelosBase = {
 };
 
 function cargarModelos() {
-    // Cargar Edificio
+    // Cargar Rascacielos Urbano
     gltfLoader.load('assets/models/building-a.glb', (gltf) => {
         modelosBase.edificio = gltf.scene;
         modelosBase.edificio.traverse(node => { if(node.isMesh) { node.castShadow = true; node.receiveShadow = true; } });
 
-        // Inyección asíncrona: Sembramos los edificios en la pista que ya se generó
+        // Inyección Asíncrona: Sella rascacielos masivos en las losas de la pista ya generadas
         if (typeof tiles !== 'undefined' && tiles.length > 0) {
             tiles.forEach(tile => {
                 [-8, 8].forEach(xPos => {
                     if (Math.random() > 0.25) {
                         const building = modelosBase.edificio.clone();
-                        const escalaAltura = 0.8 + Math.random() * 1.5;
-                        building.scale.y = escalaAltura;
+
+                        // Escalado Masivo Multidimensional
+                        const escalaBaseBase = 6.5; 
+                        building.scale.set(escalaBaseBase, escalaBaseBase, escalaBaseBase); 
+
+                        // Variación drástica de la altura vertical de las estructuras
+                        const escalaAlturaAleatoria = 1.0 + Math.random() * 2.5; 
+                        building.scale.y *= escalaAlturaAleatoria;
+
                         building.position.set(xPos + (Math.random() * 2 - 1), 0, (Math.random() * 10 - 5));
                         building.rotation.y = Math.random() * Math.PI * 2;
                         tile.mesh.add(building); 
@@ -67,21 +74,21 @@ function cargarModelos() {
         }
     });
 
-    // Cargar Tren
+    // Cargar Tren Obstáculo Grande
     gltfLoader.load('assets/models/train-locomotive-b.glb', (gltf) => {
         modelosBase.tren = gltf.scene;
         modelosBase.tren.scale.set(1.1, 1.1, 1.1); 
         modelosBase.tren.traverse(node => { if(node.isMesh) { node.castShadow = true; node.receiveShadow = true; } });
     });
 
-    // Cargar Valla
+    // Cargar Valla Obstáculo Pequeño
     gltfLoader.load('assets/models/valla_salto.glb', (gltf) => {
         modelosBase.valla = gltf.scene;
         modelosBase.valla.traverse(node => { if(node.isMesh) { node.castShadow = true; node.receiveShadow = true; } });
     });
 }
 
-// ─── LUCES Y ATMÓSFERA ────────────────────────────────────────────
+// ─── LUCES Y ILUMINACIÓN ──────────────────────────────────────────
 const hemiLight = new THREE.HemisphereLight(0x00ffe7, 0x050a0f, 0.4); 
 scene.add(hemiLight);
 
@@ -91,7 +98,7 @@ dirLight.position.set(10, 25, 10);
 dirLight.castShadow = true; 
 scene.add(dirLight);
 
-// ─── VARIABLES DE DISEÑO ─────────────────────────────────────────
+// ─── VARIABLES DE DISEÑO Y PARÁMETROS DEL JUEGO ──────────────────
 const LANES = [-2.2, 0, 2.2]; 
 const LANE_COUNT = 3;
 const TILE_LENGTH = 20;
@@ -108,7 +115,7 @@ let state = {
   startTime: 0
 };
 
-// ─── MAQUETADO DE LA CIUDAD ───────────────────────────────────────
+// ─── GENERACIÓN PROCEDURAL DE LA CIUDAD ───────────────────────────
 const tiles = [];
 const tileGeoBase = new THREE.BoxGeometry(8, 0.3, TILE_LENGTH);
 
@@ -121,12 +128,17 @@ function makeTile(z) {
     line.position.set(i * 2.2, 0.16, 0); group.add(line);
   }
 
-  // Generación sincrónica de edificios (si el modelo ya cargó)
+  // Generación sincrónica de rascacielos gigantes (aplica si el modelo está en caché)
   [-8, 8].forEach(xPos => {
     if (Math.random() > 0.25 && modelosBase.edificio) {
         const building = modelosBase.edificio.clone();
-        const escalaAltura = 0.8 + Math.random() * 1.5;
-        building.scale.y = escalaAltura;
+
+        const escalaBaseBase = 6.5; 
+        building.scale.set(escalaBaseBase, escalaBaseBase, escalaBaseBase); 
+
+        const escalaAlturaAleatoria = 1.0 + Math.random() * 2.5; 
+        building.scale.y *= escalaAlturaAleatoria;
+
         building.position.set(xPos + (Math.random() * 2 - 1), 0, (Math.random() * 10 - 5));
         building.rotation.y = Math.random() * Math.PI * 2;
         group.add(building);     
@@ -137,11 +149,9 @@ function makeTile(z) {
 }
 
 for (let i = 0; i < TILE_COUNT; i++) tiles.push({ mesh: makeTile(-i * TILE_LENGTH), items: [] });
+cargarModelos(); // Dispara la llamada de los archivos GLB posterior al maquetado inicial
 
-// Ejecutamos la carga de modelos DESPUÉS de haber creado las tiles base
-cargarModelos();
-
-// ─── GEOMETRÍAS DE MONEDAS Y POWERUPS ─────────────────────────────
+// ─── GEOMETRÍAS DE MONEDAS Y GEMAS DE PODER ───────────────────────
 const coinGeo = new THREE.TorusGeometry(0.3, 0.08, 16, 50); 
 const coinMat = new THREE.MeshStandardMaterial({ color: 0xffd700, metalness: 1.0, roughness: 0.1, emissive: 0xaa6600 });
 
@@ -152,7 +162,7 @@ const powerMats = {
   superjump: new THREE.MeshStandardMaterial({ color: 0x00ff44, emissive: 0x004411, roughness: 0.1 })  
 };
 
-// ─── GENERADOR DE OBSTÁCULOS ──────────────────────────────────────
+// ─── GENERADOR ALEATORIO DE OBSTÁCULOS EN PISTA ──────────────────
 function spawnItemsOnTile(tile) {
   tile.items.forEach(i => tile.mesh.remove(i.mesh)); tile.items = [];
   const usedLanes = new Set();
@@ -168,11 +178,11 @@ function spawnItemsOnTile(tile) {
 
       if (type === 'barrier' && modelosBase.valla) { 
         mesh = modelosBase.valla.clone();
-        mesh.position.y = 0.15; // Altura ajustada a nivel de suelo
+        mesh.position.y = 0.15; // Ajustado a nivel de suelo para evitar que flote
         
       } else if (type === 'train' && modelosBase.tren) { 
         mesh = modelosBase.tren.clone();
-        mesh.position.y = 0.15; // Altura ajustada a nivel de suelo
+        mesh.position.y = 0.15; // Ajustado a nivel de suelo para acoplarse al pavimento
         
       } else if (type === 'overhead') { 
         mesh = new THREE.Mesh(
@@ -210,20 +220,7 @@ function spawnItemsOnTile(tile) {
 }
 for (let i = 3; i < TILE_COUNT; i++) spawnItemsOnTile(tiles[i]);
 
-// ─── CONTROLES (PC) ───────────────────────────────────────────────
-document.addEventListener('keydown', e => {
-  if (!state.running || state.gameOver) return;
-  if ((e.code === 'ArrowLeft' || e.code === 'KeyA') && state.targetLane > 0) state.targetLane--;
-  if ((e.code === 'ArrowRight' || e.code === 'KeyD') && state.targetLane < LANE_COUNT - 1) state.targetLane++;
-  
-  if ((e.code === 'Space' || e.code === 'ArrowUp' || e.code === 'KeyW') && !state.isJumping) { 
-    state.isJumping = true; state.jumpVel = state.jumpForce; state.isSliding = false; 
-  }
-  if ((e.code === 'ArrowDown' || e.code === 'KeyS') && !state.isSliding && !state.isJumping) {
-    state.isSliding = true; sfxSlide.currentTime = 0; sfxSlide.play().catch(e=>e); setTimeout(() => { state.isSliding = false; }, 600);
-  }
-});
-
+// ─── BOTÓN Y EVENTOS DE INICIO DE SESIÓN ──────────────────────────
 document.getElementById('start-btn').addEventListener('click', () => { sfxSlide.play().then(() => { sfxSlide.pause(); sfxSlide.currentTime = 0; }); startGame(); });
 
 function startGame() {
@@ -244,22 +241,48 @@ function startGame() {
   bgMusic.currentTime = 0; bgMusic.play().catch(e=>e);
 }
 
-// ─── CONTROLES (META QUEST 3) ─────────────────────────────────────
+// ─── CAPTURA DE CONTROLES TECLADO (PC) ────────────────────────────
+document.addEventListener('keydown', e => {
+  if (!state.running || state.gameOver) return;
+  if ((e.code === 'ArrowLeft' || e.code === 'KeyA') && state.targetLane > 0) state.targetLane--;
+  if ((e.code === 'ArrowRight' || e.code === 'KeyD') && state.targetLane < LANE_COUNT - 1) state.targetLane++;
+  
+  if ((e.code === 'Space' || e.code === 'ArrowUp' || e.code === 'KeyW') && !state.isJumping) { 
+    state.isJumping = true; state.jumpVel = state.jumpForce; state.isSliding = false; 
+  }
+  if ((e.code === 'ArrowDown' || e.code === 'KeyS') && !state.isSliding && !state.isJumping) {
+    state.isSliding = true; sfxSlide.currentTime = 0; sfxSlide.play().catch(e=>e); setTimeout(() => { state.isSliding = false; }, 600);
+  }
+});
+
+// ─── CAPTURA DE CONTROLES JOYSTICK (META QUEST 3) ─────────────────
 function handleVRInput() {
   const session = renderer.xr.getSession(); if (!session) return; 
   for (const source of session.inputSources) {
     if (source.gamepad && source.gamepad.axes) {
       const joystickX = source.gamepad.axes[2], joystickY = source.gamepad.axes[3]; 
-      if (Math.abs(joystickX) > 0.5) { if (joystickX < -0.5 && state.targetLane > 0) state.targetLane--; else if (joystickX > 0.5 && state.targetLane < LANE_COUNT - 1) state.targetLane++; }
+      
+      // Control Lateral (Cambios de carril)
+      if (Math.abs(joystickX) > 0.5) { 
+          if (joystickX < -0.5 && state.targetLane > 0) state.targetLane--; 
+          else if (joystickX > 0.5 && state.targetLane < LANE_COUNT - 1) state.targetLane++; 
+      }
+      
+      // Control Vertical (Salto y Deslizamiento)
       if (Math.abs(joystickY) > 0.5) {
-        if (joystickY < -0.5 && !state.isJumping) { state.isJumping = true; state.jumpVel = state.jumpForce; state.isSliding = false; } 
-        else if (joystickY > 0.5 && !state.isSliding && !state.isJumping) { state.isSliding = true; sfxSlide.currentTime = 0; sfxSlide.play().catch(e=>e); setTimeout(() => { state.isSliding = false; }, 600); }
+        if (joystickY < -0.5 && !state.isJumping) { 
+            state.isJumping = true; state.jumpVel = state.jumpForce; state.isSliding = false; 
+        } 
+        else if (joystickY > 0.5 && !state.isSliding && !state.isJumping) { 
+            state.isSliding = true; sfxSlide.currentTime = 0; sfxSlide.play().catch(e=>e); 
+            setTimeout(() => { state.isSliding = false; }, 600); 
+        }
       }
     }
   }
 }
 
-// ─── LÓGICA DE POWER UPS ──────────────────────────────────────────
+// ─── ADMINISTRADOR DE ESTADOS DE POWER-UPS ────────────────────────
 function activatePowerUp(type) {
   state.baseSpeed = 0.18; state.jumpForce = 0.18; 
   const pLabel = document.getElementById('power-val');
@@ -281,15 +304,17 @@ function activatePowerUp(type) {
   }, 5000);
 }
 
-// ─── MOTOR DE FÍSICAS Y COLISIONES ASISTIDAS ──────────────────────
+// ─── BUCLE PRINCIPAL DE FÍSICAS, SUELO Y COLISIONES ───────────────
 renderer.setAnimationLoop(function () {
   if (!state.running) { renderer.render(scene, camera); return; }
-  handleVRInput();
+  
+  handleVRInput(); 
 
   state.speed = state.baseSpeed + (state.score / 15000) * 0.25;
   const targetX = LANES[state.targetLane]; cameraGroup.position.x += (targetX - cameraGroup.position.x) * 0.18;
   if (Math.abs(cameraGroup.position.x - targetX) < 0.05) state.playerLane = state.targetLane;
 
+  // Cálculo del Suelo Dinámico (Mecánica de Parkour en Trenes)
   let currentFloorY = 0; 
   for (const tile of tiles) {
     for (const item of tile.items) {
@@ -340,7 +365,7 @@ renderer.setAnimationLoop(function () {
             
             if (item.type === 'train') {
                 if (state.playerY < 1.8) hit = true;
-                else if (state.playerY < 2.8) state.playerY = 2.8; 
+                else if (state.playerY < 2.8) state.playerY = 2.8; // Asistencia matemática de escalada
             }
             
             if (item.type === 'barrier' && state.playerY < 0.6) hit = true;
@@ -357,7 +382,7 @@ renderer.setAnimationLoop(function () {
               if (state.lives <= 0) {
                 state.running = false; state.gameOver = true; bgMusic.pause();
                 
-                // MOTOR DE MÉTRICAS JAVIVISPORTS
+                // MÓDULO INTEGRADO DE RENDIMIENTO DEPORTIVO (JAVIVISPORTS)
                 const timeSeconds = (Date.now() - state.startTime) / 1000;
                 const distanceKm = state.score / 1000;
                 
